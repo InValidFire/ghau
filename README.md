@@ -32,6 +32,11 @@ See my current To-Do list for the package below:
 - Implement Python's `logging` module.
 - Extend Whitelist to protect files during extraction of downloaded zips.
 - Cleanup & Code Optimization
+## Installation
+The package is posted on PyPi, so you can install it using pip, simply run:
+```
+pip install ghau
+```
 ## Example
 ```py
 import ghau
