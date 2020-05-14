@@ -9,11 +9,11 @@ The goal of this repository is to create a flexible package that can easily be i
 Basically I got tired of building update scripts for every program I made.
 ## Features
 - **UPDATE**: Automatically update distributed copies of any public GitHub repository using GitHub Releases.
-- **Clean Directory**: Option to install to a clean directory after update.
-	- Whitelist files you don't want deleted during this process.
+- **Clean Directory**: Option to delete certain files before an update is installed.
+- **Whitelist**: Protect certain files from being overwritten by update installation, useful for config files.
 - **Pre-Releases**: Choose to include pre-releases in updates.
 - **Developer Mode detection**: If the package detects a .git folder with files inside, it will automatically abort the update process to protect the file structure during development.
-- **Automatic Reboots**: Optionally automatically reboot into the newer program after update installation. Supports rebooting into a python script, executable, or a custom run command!
+- **Automatic Reboots**: Optionally reboot into the newer program after update installation. Supports rebooting into a python script, executable, or a custom run command!
 - **Authentication**: Authenticate with the Github API to recieve a larger rate limit and access to your private repositories.
   - Do not store your API token in a public location. Use environmental variables.
 - **Download assets or source code**: Choose between downloading the source code or an uploaded asset!
