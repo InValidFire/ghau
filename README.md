@@ -17,27 +17,18 @@ Basically I got tired of building update scripts for every program I made.
 - **Authentication**: Authenticate with the Github API to recieve a larger rate limit and access to your private repositories.
   - Do not store your API token in a public location. Use environmental variables.
 - **Download assets or source code**: Choose between downloading the source code or an uploaded asset!
-## State of Package
-Before you go any further I would like to leave a notice here regarding the current state of the package.
-
-This package was originally a script I used in other projects, so some behaviour currently may be a bit... odd for your typical package.
-
-The API is going to be unstable at the moment until I get things sorted out. Thanks! <3
-
-See my current To-Do list for the package below:
 ### To-Do
 - Add proper tests (gotta figure out this one)
 - Improve on asset and version detection.
 - Improve developer environment detection.
 - Implement Python's `logging` module.
-- Extend Whitelist to protect files during extraction of downloaded zips.
 - Cleanup & Code Optimization
 ## Installation
 The package is posted on PyPi, so you can install it using pip, simply run:
 ```
 pip install ghau
 ```
-## Example
+## Basic Example
 ```py
 import ghau
 #other imports
