@@ -9,30 +9,26 @@ The goal of this repository is to create a flexible package that can easily be i
 Basically I got tired of building update scripts for every program I made.
 ## Features
 - **UPDATE**: Automatically update distributed copies of any public GitHub repository using GitHub Releases.
-- **Clean Directory**: Option to install to a clean directory after update.
-	- Whitelist files you don't want deleted during this process.
+- **Clean Directory**: Option to delete certain files before an update is installed.
+- **Whitelist**: Protect certain files from being overwritten by update installation, useful for config files.
 - **Pre-Releases**: Choose to include pre-releases in updates.
 - **Developer Mode detection**: If the package detects a .git folder with files inside, it will automatically abort the update process to protect the file structure during development.
-- **Automatic Reboots**: Optionally automatically reboot into the newer program after update installation. Supports rebooting into a python script, executable, or a custom run command!
+- **Automatic Reboots**: Optionally reboot into the newer program after update installation. Supports rebooting into a python script, executable, or a custom run command!
 - **Authentication**: Authenticate with the Github API to recieve a larger rate limit and access to your private repositories.
   - Do not store your API token in a public location. Use environmental variables.
 - **Download assets or source code**: Choose between downloading the source code or an uploaded asset!
-## State of Package
-Before you go any further I would like to leave a notice here regarding the current state of the package.
-
-This package was originally a script I used in other projects, so some behaviour currently may be a bit... odd for your typical package.
-
-The API is going to be unstable at the moment until I get things sorted out. Thanks! <3
-
-See my current To-Do list for the package below:
 ### To-Do
 - Add proper tests (gotta figure out this one)
 - Improve on asset and version detection.
 - Improve developer environment detection.
 - Implement Python's `logging` module.
-- Extend Whitelist to protect files during extraction of downloaded zips.
 - Cleanup & Code Optimization
-## Example
+## Installation
+The package is posted on PyPi, so you can install it using pip, simply run:
+```
+pip install ghau
+```
+## Basic Example
 ```py
 import ghau
 #other imports
