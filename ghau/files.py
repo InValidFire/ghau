@@ -20,26 +20,35 @@ import os
 import sys
 import shutil
 import zipfile
+import logging
 
 import requests
 from wcmatch import wcmatch
 
+log = logging.getLogger("ghau")
 
-def message(msg, send: bool = False):  # TODO: Change to utilize 'logging' module, much more flexible.
+
+def message(msg, mode: str = "debug"):
     """Sends a message to the console if send is true. Used to easily control debug and error message output."""
-    if send:
-        print("GHAU: "+str(msg))
+    if mode == "debug":
+        log.debug(msg)
+    elif mode == "info":
+        log.info(msg)
+    elif mode == "warning":
+        log.warning(msg)
+    elif mode == "critical":
+        log.critical(msg)
+    elif mode == "exception":
+        log.exception(msg)
 
 
-def download(url: str, save_file: str, debug: bool):
+def download(url: str, save_file: str):
     """Download a file from the given url and save it to the given save_file.
 
     :param url: url of the file to download.
     :type url: str
     :param save_file: file to save the downloaded to.
-    :type save_file: str
-    :param debug: send debug messages
-    :type debug: bool"""
+    :type save_file: str"""
     r = requests.get(url, stream=True)
     with open(save_file, "wb") as fd:
         i = 0
@@ -47,10 +56,10 @@ def download(url: str, save_file: str, debug: bool):
             if chunk:
                 i += 1
                 fd.write(chunk)
-                message("Wrote chunk {} to {}".format(str(i), save_file), debug)
+                message("Wrote chunk {} to {}".format(str(i), save_file), "debug")
 
 
-def extract_zip(extract_path, file_path, wl: list, debug: bool = False):
+def extract_zip(extract_path, file_path, wl: list):
     """Extracts files from the given zip file_path into the given extract_path and performs cleanup operations.
 
     Will not overwrite files present in the given whitelist.
@@ -60,11 +69,9 @@ def extract_zip(extract_path, file_path, wl: list, debug: bool = False):
     :param file_path: path of the zip to extract.
     :type file_path: str
     :param wl: whitelist to avoid overwriting files from.
-    :type wl: list
-    :param debug: send debug messages
-    :type debug: bool"""
+    :type wl: list"""
     program_dir = os.path.realpath(os.path.dirname(sys.argv[0]))
-    message("Extracting: {}".format(file_path), debug)
+    message("Extracting: {}".format(file_path), "debug")
     with zipfile.ZipFile(file_path, "r") as zf:
         zf.extractall(extract_path)
         for item in zf.infolist():
@@ -72,17 +79,17 @@ def extract_zip(extract_path, file_path, wl: list, debug: bool = False):
                 extract_folder = os.path.join(program_dir, item.filename)
                 break
     for filename in os.listdir(os.path.join(extract_path, extract_folder)):
-        message("Comparing: file {}".format(filename), debug)
+        message("Comparing: file {}".format(filename), "debug")
         in_whitelist = False
         for item in wl:  # don't overwrite whitelisted items.
-            message("Comparing against whitelist item: {}".format(item), debug)
+            message("Comparing against whitelist item: {}".format(item), "debug")
             if filename == os.path.split(item)[1]:
                 in_whitelist = True
-                message("{} matched {}".format(item, filename), debug)
+                message("{} matched {}".format(item, filename), "debug")
         if in_whitelist:
             message("Skipping to next file.")
             continue
-        message("Extracting file: {}".format(filename))
+        message("Extracting file: {}".format(filename), "debug")
         source = os.path.join(extract_path, extract_folder, filename)
         dest = os.path.join(extract_path, filename)
         shutil.move(source, dest)
@@ -90,19 +97,17 @@ def extract_zip(extract_path, file_path, wl: list, debug: bool = False):
     os.remove(file_path)
 
 
-def clean_files(file_list: list, debug: bool):
+def clean_files(file_list: list):
     """Delete all files in the file_list. Used to perform cleaning if ghau.update.Update.clean is enabled.
 
     :param file_list: list of files to delete.
-    :type file_list: list
-    :param debug: send debug messages.
-    :type: debug: bool"""
+    :type file_list: list"""
     for path in file_list:
-        message("Removing path {}".format(path), debug)
+        message("Removing path {}".format(path), "debug")
         os.remove(path)
 
 
-def load_dict(name: str, root: str, dictobj: dict, debug: bool = False) -> list:
+def load_dict(name: str, root: str, dictobj: dict) -> list:
     """Filter directory based on given cleanlist. Returns paths of given files. This function utilizes
         wcmatch to identify files.
 
@@ -112,8 +117,6 @@ def load_dict(name: str, root: str, dictobj: dict, debug: bool = False) -> list:
         :type root: str
         :param dictobj: unprocessed dictionary to load.
         :type dictobj: dict
-        :param debug: send debug messages
-        :type debug: bool
 
         :returns list: paths of files found through the cleanlist."""
     file_search = ""
@@ -132,9 +135,9 @@ def load_dict(name: str, root: str, dictobj: dict, debug: bool = False) -> list:
             else:
                 exclusions += "|" + key
             e += 1
-    message("{} file_search: {}".format(name, file_search), debug)
-    message("{} exclusions: {}".format(name, exclusions), debug)
-    message("{} is searching for files in directory: {}".format(name, root), debug)
+    message("{} file_search: {}".format(name, file_search), "debug")
+    message("{} exclusions: {}".format(name, exclusions), "debug")
+    message("{} is searching for files in directory: {}".format(name, root), "debug")
     pl = wcmatch.WcMatch(root, file_search, exclusions, flags=wcmatch.RECURSIVE | wcmatch.GLOBSTAR |
                          wcmatch.PATHNAME).match()
     return pl

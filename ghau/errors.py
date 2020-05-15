@@ -119,7 +119,7 @@ def ratetest(ratemin: int, token=None):
     if rl.core.remaining <= ratemin:
         raise GithubRateLimitError(rl.core.reset.timestamp())
     else:
-        files.message("API requests remaining: " + str(rl.core.remaining))
+        files.message("API requests remaining: " + str(rl.core.remaining), "info")
 
 
 def argtest(args: list, arg: str):
