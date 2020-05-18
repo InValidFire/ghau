@@ -37,21 +37,21 @@ Downloading pre-releases::
 	update = ghau.Update(version=VERSION, repo=REPO, pre-releases=True)
 	update.update()
 	
-Cleaning installation directory w/ whitelist::
+Cleaning and whitelisting files::
 
 	import ghau
 	
 	VERSION = "v0.0.1"
 	REPO = "InValidFire/ghau"
 	
-	#when cleaning is enabled it will install updates to a fresh directory.
-	update = ghau.Update(version=VERSION, repo=REPO, clean=True)
+	update = ghau.Update(version=VERSION, repo=REPO)
 	
-	# these methods will add the specified files/folders to the whitelist
-	# whitelisted files are protected from deletion during cleaning.
-	update.wl_folder("data/", "tests/")
-	update.wl_file("README.md")
+	# Whitelisted files are protected from deletion during cleaning.
+	update.wl_files("README.md","*\*/data/*")
 	
+	# Cleanlisted files will be deleted before update installation. 
+	# Usually this isn't needed as files will be overwritten if it already exists.
+	update.cl_files("old_dir/*")
 	update.update()
 
 Downloading Assets::
@@ -119,16 +119,15 @@ the update process.
 
 Whitelisting
 ------------
-If you choose to clean a directory before installing an update, you have the option to protect 
-certain files or directories through a whitelist. Every instance of the :class:`ghau.Update` class 
-has a whitelist and may be added to it using methods :meth:`ghau.Update.wl_folder`, 
-and :meth:`ghau.Update.wl_file`::
+Whitelisted files will not be overwritten during update installation. Use this to protect data directories or files. 
+Every instance of the :class:`ghau.Update` class has a whitelist and may be added to it using methods :meth:`ghau.Update.wl_files`, 
+and :meth:`ghau.Update.wl_exclude`::
 
 	import ghau
 	
-	update = ghau.Update(version="v0.0.1", repo="InValidFire/ghau", clean=True)
-	update.wl_file("data.csv")
-	update.wl_folder("data/")
+	update = ghau.Update(version="v0.0.1", repo="InValidFire/ghau")
+	update.wl_files("data.csv")
+	update.wl_exclude("data/")
 	update.update()
 
 Licensing
