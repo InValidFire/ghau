@@ -65,10 +65,10 @@ def _load_release(repo: str, pre_releases: bool, auth) -> GitRelease.GitRelease:
             raise ge.ReleaseNotFoundError(repo)
         if pre_releases:
             gf.message("Accepting pre-releases", "debug")
-            return g.get_repo(repo).get_releases().reversed[0]
+            return g.get_repo(repo).get_releases()[0]
         elif not pre_releases:
             gf.message("Accepting full releases", "debug")
-            for release in g.get_repo(repo).get_releases().reversed:
+            for release in g.get_repo(repo).get_releases():
                 gf.message("Checking release: {}".format(release.tag_name), "debug")
                 if not release.prerelease:
                     gf.message("Release found {}".format(release.tag_name), "debug")

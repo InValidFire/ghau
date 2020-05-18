@@ -21,6 +21,7 @@ import sys
 import shutil
 import zipfile
 import logging
+import pathlib
 
 import requests
 from wcmatch import wcmatch
@@ -70,29 +71,27 @@ def extract_zip(extract_path, file_path, wl: list):
     :type file_path: str
     :param wl: whitelist to avoid overwriting files from.
     :type wl: list"""
-    program_dir = os.path.realpath(os.path.dirname(sys.argv[0]))
+    program_dir = pathlib.Path(os.path.realpath(os.path.dirname(sys.argv[0])))
+
+    message(program_dir, "debug")
     message("Extracting: {}".format(file_path), "debug")
     with zipfile.ZipFile(file_path, "r") as zf:
         zf.extractall(extract_path)
         for item in zf.infolist():
             if item.is_dir():
-                extract_folder = os.path.join(program_dir, item.filename)
+                extract_folder = pathlib.Path(os.path.join(program_dir, item.filename))
                 break
-    for filename in os.listdir(os.path.join(extract_path, extract_folder)):
-        message("Comparing: file {}".format(filename), "debug")
-        in_whitelist = False
-        for item in wl:  # don't overwrite whitelisted items.
-            message("Comparing against whitelist item: {}".format(item), "debug")
-            if filename == os.path.split(item)[1]:
-                in_whitelist = True
-                message("{} matched {}".format(item, filename), "debug")
-        if in_whitelist:
-            message("Skipping to next file.")
-            continue
-        message("Extracting file: {}".format(filename), "debug")
-        source = os.path.join(extract_path, extract_folder, filename)
-        dest = os.path.join(extract_path, filename)
-        shutil.move(source, dest)
+    for path in extract_folder.glob("**/*"):
+        message(path, "debug")
+        rpath = path.relative_to(extract_folder)
+        message(program_dir.joinpath(rpath), "debug")
+        if path.is_dir():
+            if not program_dir.joinpath(rpath).exists():
+                message("Directory '{}' not found, creating.".format(rpath), "debug")
+                program_dir.joinpath(rpath).mkdir()
+        elif path.is_file() and str(program_dir.joinpath(rpath)) not in wl:
+            message("Moving file '{}' to '{}'".format(path, program_dir.joinpath(rpath)))
+            shutil.move(str(path), str(program_dir.joinpath(rpath)))
     shutil.rmtree(extract_folder)
     os.remove(file_path)
 
