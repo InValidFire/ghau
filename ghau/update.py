@@ -20,6 +20,7 @@
 import os
 import sys
 import subprocess
+from ivf import config, files
 
 import ghau.errors as ge
 import ghau.files as gf
@@ -188,10 +189,15 @@ class Update:
         self.success_args = success_args
         self.fail_func = fail_func
         self.fail_args = fail_args
-        if "-ghau" in sys.argv and self.success_func is not None and self.success_args is not None:
-            self.success_func(f"Updated to {self.version}", *self.success_args)
-        elif "-ghau" in sys.argv and self.success_func is not None:
-            self.success_func(f"Updated to {self.version}")
+        if "-ghau" in sys.argv and self.success_func is not None:
+            if files.get_program_dir().joinpath('ghau_temp').exists():
+                data = config.load(files.get_program_dir().joinpath('ghau_temp'))
+                self.success_args = data['args']
+                self.success_func(f"Updated to {self.version}", *self.success_args)
+            else:
+                self.success_func(f"Updated to {self.version}")
+        if files.get_program_dir().joinpath('ghau_temp').exists():
+            files.get_program_dir().joinpath('ghau_temp').unlink()
 
     def update(self):
         """Check for updates and install if an update is found.
@@ -204,6 +210,9 @@ class Update:
         :exception ghau.errors.InvalidDownloadTypeError: an unexpected value was given to the download parameter of
             :class:`ghau.update.Update`."""
         try:
+            if self.success_args is not None:  # creates temp argument file if success_args exists
+                data = {'args': self.success_args}
+                config.save(files.get_program_dir().joinpath('ghau_temp'), data)
             ge.argtest(sys.argv, "-ghau")
             ge.devtest(self.program_dir)
             ge.ratetest(self.ratemin, self.auth)
