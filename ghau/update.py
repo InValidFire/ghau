@@ -92,9 +92,9 @@ def _run_cmd(command: str):
         subprocess.call(data)  # windows terminal doesn't play nice with replacing the process. :(
         sys.exit()
     else:
-        subprocess.Popen(command)
+        cmd_split = command.split(" ")
+        subprocess.Popen(cmd_split)
         sys.exit()
-
 
 def python(file: str) -> str:  # used by users to reboot to the given python file in the working directory.
     """Builds the command required to run the given python file if it is in the current working directory.
@@ -112,7 +112,7 @@ def python(file: str) -> str:  # used by users to reboot to the given python fil
     if file.endswith(".py"):
         executable = sys.executable
         file_path = os.path.join(program_dir, file)
-        return "{} {} -ghau".format(executable, file_path)
+        return f"{executable} {file_path} -ghau"
     else:
         raise ge.FileNotScriptError(file)
 
@@ -171,7 +171,7 @@ class Update:
     """
     def __init__(self, version: str, repo: str, pre_releases: bool = False,
                  reboot: str = None, download: str = "zip",
-                 asset: str = None, auth: str = None, ratemin: int = 20):
+                 asset: str = None, auth: str = None, ratemin: int = 20, success_func = None, fail_func = None):
         self.auth = auth
         self.ratemin = ratemin
         self.version = version
@@ -183,6 +183,10 @@ class Update:
         self.download = download
         self.asset = asset
         self.program_dir = os.path.realpath(os.path.dirname(sys.argv[0]))
+        self.success_func = success_func
+        self.fail_func = fail_func
+        if "-ghau" in sys.argv and self.success_func is not None:
+            self.success_func()
 
     def update(self):
         """Check for updates and install if an update is found.
@@ -222,10 +226,14 @@ class Update:
                     raise ge.InvalidDownloadTypeError(self.download)
             else:
                 gf.message("No update required.", "info")
+                if self.fail_func is not None:
+                    self.fail_func("No update required.")
         except (ge.GithubRateLimitError, ge.GitRepositoryFoundError, ge.ReleaseNotFoundError, ge.ReleaseAssetError,
                 ge.FileNotExeError, ge.FileNotScriptError, ge.NoAssetsFoundError, ge.InvalidDownloadTypeError,
                 ge.LoopPreventionError) as e:
             gf.message(e.message, "info")
+            if self.fail_func is not None:
+                self.fail_func(e.message)
             return
 
     def wl_test(self):

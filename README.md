@@ -21,7 +21,6 @@ Basically I got tired of building update scripts for every program I made.
 - Add proper tests (gotta figure out this one)
 - Improve on asset and version detection.
 - Improve developer environment detection.
-- Implement Python's `logging` module.
 - Cleanup & Code Optimization
 ## Installation
 The package is posted on PyPi, so you can install it using pip, simply run:
