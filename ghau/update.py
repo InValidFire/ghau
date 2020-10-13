@@ -171,7 +171,7 @@ class Update:
     """
     def __init__(self, version: str, repo: str, pre_releases: bool = False,
                  reboot: str = None, download: str = "zip",
-                 asset: str = None, auth: str = None, ratemin: int = 20, success_func = None, fail_func = None):
+                 asset: str = None, auth: str = None, ratemin: int = 20, success_func: list = None, fail_func: list = None):
         self.auth = auth
         self.ratemin = ratemin
         self.version = version
@@ -183,10 +183,12 @@ class Update:
         self.download = download
         self.asset = asset
         self.program_dir = os.path.realpath(os.path.dirname(sys.argv[0]))
-        self.success_func = success_func
-        self.fail_func = fail_func
+        self.success_func = success_func[0]
+        self.success_func_args = success_func[1]
+        self.fail_func = fail_func[0]
+        self.fail_func_args = fail_func[1]
         if "-ghau" in sys.argv and self.success_func is not None:
-            self.success_func()
+            self.success_func(f"Updated to {self.version}", *self.success_func_args)
 
     def update(self):
         """Check for updates and install if an update is found.
@@ -227,13 +229,13 @@ class Update:
             else:
                 gf.message("No update required.", "info")
                 if self.fail_func is not None:
-                    self.fail_func("No update required.")
+                    self.fail_func("No update required.", *self.fail_func_args)
         except (ge.GithubRateLimitError, ge.GitRepositoryFoundError, ge.ReleaseNotFoundError, ge.ReleaseAssetError,
                 ge.FileNotExeError, ge.FileNotScriptError, ge.NoAssetsFoundError, ge.InvalidDownloadTypeError,
                 ge.LoopPreventionError) as e:
             gf.message(e.message, "info")
             if self.fail_func is not None:
-                self.fail_func(e.message)
+                self.fail_func(e.message, *self.fail_func_args)
             return
 
     def wl_test(self):
