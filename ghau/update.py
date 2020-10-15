@@ -85,17 +85,16 @@ def _load_release(repo: str, pre_releases: bool, auth) -> GitRelease.GitRelease:
 
 def _run_cmd(command: str):
     """Run the given command and close the python interpreter.
-    If no command is given, it will just close."""
+    If no command is given, it will just close. Does not support Windows OS."""
     if command is None:  # closes program without reboot if no command is given.
         sys.exit()
-    if sys.platform == "win32":  # windows needs special treatment
-        data = command.split()
-        subprocess.call(data)  # windows terminal doesn't play nice with replacing the process. :(
+    if sys.platform == "win32":  # removing windows support for the time being, it's wonky.
+        print("Platform not supported.")
         sys.exit()
     else:
         cmd_split = command.split(" ")
-        subprocess.Popen(cmd_split)
-        sys.exit()
+        sys.stdout.flush()
+        os.execv(cmd_split[0], cmd_split[1:])
 
 def python(file: str) -> str:  # used by users to reboot to the given python file in the working directory.
     """Builds the command required to run the given python file if it is in the current working directory.

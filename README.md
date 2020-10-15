@@ -1,10 +1,10 @@
 # GHAU
-Github Auto Update package available to use for all public Github Repositories. 
+Github Auto Update package available to use for all public Github Repositories.
 
 **Currently in development.**
 
 ## Goal
-The goal of this repository is to create a flexible package that can easily be implemented into any python project allowing for automatic updates through GitHub Releases. 
+The goal of this repository is to create a flexible package that can easily be implemented into any python project allowing for automatic updates through GitHub Releases.
 
 Basically I got tired of building update scripts for every program I made.
 ## Features
@@ -13,7 +13,7 @@ Basically I got tired of building update scripts for every program I made.
 - **Whitelist**: Protect certain files from being overwritten by update installation, useful for config files.
 - **Pre-Releases**: Choose to include pre-releases in updates.
 - **Developer Mode detection**: If the package detects a .git folder with files inside, it will automatically abort the update process to protect the file structure during development.
-- **Automatic Reboots**: Optionally reboot into the newer program after update installation. Supports rebooting into a python script, executable, or a custom run command!
+- **Automatic Reboots**: Optionally reboot into the newer program after update installation. Supports rebooting into a python script, executable, or a custom run command! **Windows not supported.**
 - **Authentication**: Authenticate with the Github API to recieve a larger rate limit and access to your private repositories.
   - Do not store your API token in a public location. Use environmental variables.
 - **Download assets or source code**: Choose between downloading the source code or an uploaded asset!
@@ -23,6 +23,8 @@ Basically I got tired of building update scripts for every program I made.
 - Improve developer environment detection.
 - Cleanup & Code Optimization
 ## Installation
+> Does not support Windows!
+
 The package is posted on PyPi, so you can install it using pip, simply run:
 ```
 pip install ghau
