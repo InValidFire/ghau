@@ -23,7 +23,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name='ghau',
-    version='v0.3.3.3',
+    version='v0.3.4',
     author='Elizabeth Housden',
     author_email='wolvie2013@gmail.com',
     description='Github Auto Update package using Github releases.',

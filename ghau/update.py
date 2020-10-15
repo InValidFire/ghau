@@ -112,7 +112,7 @@ def python(file: str) -> str:  # used by users to reboot to the given python fil
     if file.endswith(".py"):
         executable = sys.executable
         file_path = os.path.join(program_dir, file)
-        return f"{executable} {file_path} -ghau"
+        return f"{executable} python {file_path} --ghau"
     else:
         raise ge.FileNotScriptError(file)
 
@@ -129,7 +129,7 @@ def exe(file: str) -> str:  # added for consistency. Boots file in working direc
 
     :exception ghau.errors.FileNotExeError: raised if the given file is not an executable."""
     if file.endswith(".exe"):
-        return "{} -ghau".format(file)
+        return "{} --ghau".format(file)
     else:
         raise ge.FileNotExeError(file)
 
@@ -143,7 +143,7 @@ def cmd(command: str) -> str:  # same as exe
 
     See also: :func:`ghau.update.python`, :func:`ghau.update.exe`
     """
-    return "{} -ghau".format(command)
+    return "{} --ghau".format(command)
 
 
 class Update:
@@ -172,7 +172,7 @@ class Update:
     def __init__(self, version: str, repo: str, pre_releases: bool = False,
                  reboot: str = None, download: str = "zip",
                  asset: str = None, auth: str = None, ratemin: int = 20, success_func = None, fail_func = None,
-                 success_args: list = None, fail_args: list = None):
+                 success_args: list = None, fail_args: list = None, boot_check: bool = True):
         self.auth = auth
         self.ratemin = ratemin
         self.version = version
@@ -184,11 +184,12 @@ class Update:
         self.download = download
         self.asset = asset
         self.program_dir = os.path.realpath(os.path.dirname(sys.argv[0]))
+        self.boot_check = boot_check
         self.success_func = success_func
         self.success_args = success_args
         self.fail_func = fail_func
         self.fail_args = fail_args
-        if "-ghau" in sys.argv and self.success_func is not None:
+        if "--ghau" in sys.argv and self.success_func is not None:
             if files.get_program_dir().joinpath('ghau_temp').exists():
                 data = config.load(files.get_program_dir().joinpath('ghau_temp'))
                 self.success_args = data['args']
@@ -212,7 +213,8 @@ class Update:
             if self.success_args is not None:  # creates temp argument file if success_args exists
                 data = {'args': self.success_args}
                 config.save(files.get_program_dir().joinpath('ghau_temp'), data)
-            ge.argtest(sys.argv, "-ghau")
+            if self.boot_check:
+                ge.argtest(sys.argv, "--ghau")
             ge.devtest(self.program_dir)
             ge.ratetest(self.ratemin, self.auth)
             wl = gf.load_dict("Whitelist", self.program_dir, self.whitelist)
