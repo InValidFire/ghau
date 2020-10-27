@@ -16,13 +16,14 @@
 #  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 #  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+import logging
 import datetime
 
 from github import Github
-from wcmatch import wcmatch
-
+from pathlib import Path
 import ghau.files as files
 
+log = logging.getLogger('ghau')
 
 class GhauError(Exception):
     """Base Exception class"""
@@ -38,7 +39,7 @@ class GitRepositoryFoundError(GhauError):
 class GithubRateLimitError(GhauError):
     """Raised when exceeding GitHub's API rate."""
     def __init__(self, resettime):
-        self.message = ("Current Github API rate limit reached. Cannot check for updates at this time.\n" 
+        self.message = ("Current Github API rate limit reached. Cannot check for updates at this time.\n"
                         "Scheduled to reset on " +
                         datetime.datetime.fromtimestamp(resettime).strftime('%B %d at %H:%M:%S'))
 
@@ -46,43 +47,43 @@ class GithubRateLimitError(GhauError):
 class ReleaseNotFoundError(GhauError):
     """Raised when there are no releases found for the requested repository."""
     def __init__(self, repo: str):
-        self.message = ("No releases found for repository {}, aborting.".format(repo))
+        self.message = (f"No releases found for repository {repo}, aborting.")
 
 
 class ReleaseAssetError(GhauError):
     """Raised when there is no asset found in the release by the requested name"""
     def __init__(self, release, asset_name):
-        self.message = ("No asset '{}' found for release {}, aborting".format(asset_name, release))
+        self.message = (f"No asset '{asset_name}' found for release {release}, aborting")
 
 
 class RepositoryNotFoundError(GhauError):
     """Raised when Github request returns a 404"""
     def __init__(self, repo: str):
-        self.message = ("The repository {} could not be found, aborting.".format(repo))
+        self.message = (f"The repository {repo} could not be found, aborting.")
 
 
 class NoAssetsFoundError(GhauError):
     """Raised when an asset request returns no asset list"""
     def __init__(self, release):
-        self.message = ("No assets found for release {}".format(release))
+        self.message = (f"No assets found for release {release}")
 
 
 class InvalidDownloadTypeError(GhauError):
     """Raised when the download parameter value is not expected."""
     def __init__(self, download):
-        self.message = ("'download' parameter value '{}' is not expected.".format(download))
+        self.message = (f"'download' parameter value '{download}' is not expected.")
 
 
 class FileNotExeError(GhauError):
     """Raised when the file given is not an executable."""
     def __init__(self, file: str):
-        self.message = ("The file '{}' is not an .exe".format(file))
+        self.message = (f"The file '{file}' is not an .exe")
 
 
 class FileNotScriptError(GhauError):
     """Raised when the file given is not a python script."""
     def __init__(self, file: str):
-        self.message = ("The file '{}' is not a python script.".format(file))
+        self.message = (f"The file '{file}' is not a python script.")
 
 
 class LoopPreventionError(GhauError):
@@ -91,11 +92,10 @@ class LoopPreventionError(GhauError):
         self.message = "Booting after update install, skipping update check."
 
 
-class NoPureWildcardsAllowedError(GhauError):
-    """Raised when a pure '*' entry is found in either the whitelist or cleanlist. This is to protect programs
-     from accidentally wiping too much. Be more specific in your searches."""
-    def __init__(self, listname: str):
-        self.message = ("Found a pure '*' entry in the {} list. Please remove it.".format(listname))
+class NotAFileOrDirectoryError(GhauError):
+    """Raised when a path leads to neither a file nor a directory"""
+    def __init__(self, path):
+        self.message = (f"Path is not a file or a directory {path}")
 
 
 def devtest(root):  # TODO Improve dev environment detection
@@ -103,9 +103,7 @@ def devtest(root):  # TODO Improve dev environment detection
 
     :exception ghau.errors.GitRepositoryFoundError: stops the update process if a .git folder is found within
      the program directory"""
-    pl = wcmatch.WcMatch(root, ".git/*", "", flags=wcmatch.RECURSIVE | wcmatch.DIRPATHNAME | wcmatch.FILEPATHNAME |
-                         wcmatch.HIDDEN).match()
-    if len(pl) > 0:
+    if Path(root).joinpath(".git").exists():
         raise GitRepositoryFoundError
 
 
@@ -119,7 +117,7 @@ def ratetest(ratemin: int, token=None):
     if rl.core.remaining <= ratemin:
         raise GithubRateLimitError(rl.core.reset.timestamp())
     else:
-        files.message("API requests remaining: " + str(rl.core.remaining), "info")
+        log.info(f"API requests remaining: {rl.core.remaining}")
 
 
 def argtest(args: list, arg: str):
@@ -129,4 +127,8 @@ def argtest(args: list, arg: str):
 
     :exception ghau.errors.LoopPreventionError: stops the update process if booting after an update installation."""
     if arg in args:
+        raise LoopPreventionError
+
+def filetest(folder: Path, file: Path):
+    if folder.joinpath(file).exists():
         raise LoopPreventionError

@@ -16,31 +16,14 @@
 #  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
 #  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-import os
-import sys
 import shutil
 import zipfile
 import logging
-import pathlib
+from ivf import files
 
 import requests
-from wcmatch import wcmatch
 
 log = logging.getLogger("ghau")
-
-
-def message(msg, mode: str = "debug"):
-    """Sends a message to the console if send is true. Used to easily control debug and error message output."""
-    if mode == "debug":
-        log.debug(msg)
-    elif mode == "info":
-        log.info(msg)
-    elif mode == "warning":
-        log.warning(msg)
-    elif mode == "critical":
-        log.critical(msg)
-    elif mode == "exception":
-        log.exception(msg)
 
 
 def download(url: str, save_file: str):
@@ -57,7 +40,7 @@ def download(url: str, save_file: str):
             if chunk:
                 i += 1
                 fd.write(chunk)
-                message("Wrote chunk {} to {}".format(str(i), save_file), "debug")
+                log.debug(f"Wrote chunk {i} to {save_file}")
 
 
 def extract_zip(extract_path, file_path, wl: list):
@@ -71,72 +54,30 @@ def extract_zip(extract_path, file_path, wl: list):
     :type file_path: str
     :param wl: whitelist to avoid overwriting files from.
     :type wl: list"""
-    program_dir = pathlib.Path(os.path.realpath(os.path.dirname(sys.argv[0])))
+    program_dir = files.get_program_dir()
 
-    message(program_dir, "debug")
-    message("Extracting: {}".format(file_path), "debug")
+    log.debug(program_dir)
+    log.debug(f"Extracting: {file_path}")
     with zipfile.ZipFile(file_path, "r") as zf:
         zf.extractall(extract_path)
+        extract_folder = files.get_program_dir().joinpath("tmp")
         for item in zf.infolist():
             if item.is_dir():
-                extract_folder = pathlib.Path(os.path.join(program_dir, item.filename))
+                extract_folder = program_dir.joinpath(item.filename)
                 break
     for path in extract_folder.glob("**/*"):
-        message(path, "debug")
+        log.debug(path)
         rpath = path.relative_to(extract_folder)
-        message(program_dir.joinpath(rpath), "debug")
+        log.debug(program_dir.joinpath(rpath))
+        log.debug(f"WHITELIST: {wl}, PATH: {rpath}")
+        if rpath in wl:
+            log.debug(f"MATCH: {rpath}")
         if path.is_dir():
             if not program_dir.joinpath(rpath).exists():
-                message("Directory '{}' not found, creating.".format(rpath), "debug")
+                log.debug(f"Directory '{rpath}' not found, creating.")
                 program_dir.joinpath(rpath).mkdir()
-        elif path.is_file() and str(program_dir.joinpath(rpath)) not in wl:
-            message("Moving file '{}' to '{}'".format(path, program_dir.joinpath(rpath)))
+        elif path.is_file() and rpath not in wl:
+            log.debug(f"Moving file '{path}' to '{program_dir.joinpath(rpath)}'")
             shutil.move(str(path), str(program_dir.joinpath(rpath)))
     shutil.rmtree(extract_folder)
-    os.remove(file_path)
-
-
-def clean_files(file_list: list):
-    """Delete all files in the file_list. Used to perform cleaning if ghau.update.Update.clean is enabled.
-
-    :param file_list: list of files to delete.
-    :type file_list: list"""
-    for path in file_list:
-        message("Removing path {}".format(path), "debug")
-        os.remove(path)
-
-
-def load_dict(name: str, root: str, dictobj: dict) -> list:
-    """Filter directory based on given cleanlist. Returns paths of given files. This function utilizes
-        wcmatch to identify files.
-
-        :param name: what to call this event in the debug logs.
-        :type name: str
-        :param root: directory to start the file search in.
-        :type root: str
-        :param dictobj: unprocessed dictionary to load.
-        :type dictobj: dict
-
-        :returns list: paths of files found through the cleanlist."""
-    file_search = ""
-    exclusions = ""
-    f, e = 0, 0
-    for key in dictobj.keys():
-        if dictobj[key] is False:
-            if f == 0:  # wcmatch requires no '|' on the first entry.
-                file_search += key
-            else:
-                file_search += "|" + key
-            f += 1
-        elif dictobj[key] is True:
-            if e == 0:
-                exclusions += key
-            else:
-                exclusions += "|" + key
-            e += 1
-    message("{} file_search: {}".format(name, file_search), "debug")
-    message("{} exclusions: {}".format(name, exclusions), "debug")
-    message("{} is searching for files in directory: {}".format(name, root), "debug")
-    pl = wcmatch.WcMatch(root, file_search, exclusions, flags=wcmatch.RECURSIVE | wcmatch.GLOBSTAR |
-                         wcmatch.PATHNAME).match()
-    return pl
+    file_path.unlink()

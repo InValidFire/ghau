@@ -19,33 +19,36 @@
 #
 import os
 import sys
-import subprocess
-from ivf import config, files
+import shlex
+import logging
+from pathlib import Path
 
 import ghau.errors as ge
 import ghau.files as gf
+from ivf import config, files
 from github import Github, RateLimitExceededException, UnknownObjectException, GitRelease
 
+log = logging.getLogger("ghau")
 
-def _find_release_asset(release: GitRelease.GitRelease, asset: str) -> str:  # TODO: detect asset use regex
+def _find_release_asset(release: GitRelease.GitRelease, asset: str) -> str:
     """Return the requested asset's download url from the given release.
     If no specific asset is requested, it will return the first one it comes across.
 
     :exception ghau.errors.ReleaseAssetError: No asset by given name was found.
     :exception ghau.errors.NoAssetsFoundError: No assets found for given release."""
     al = release.get_assets()
-    if al.totalCount == 0:  # if there are no assets, abort.
+    if al.totalCount == 0:
         raise ge.NoAssetsFoundError(release.tag_name)
-    if asset is None:  # if no specific asset is requested, download the first it finds.
+    if asset is None:
         return al[0].browser_download_url
-    for item in al:  # otherwise, look for the specific asset requested.
+    for item in al:
         if item.name == asset:
-            gf.message("Found asset {} with URL: {}".format(item.name, item.browser_download_url), "debug")
+            log.debug(f"Found asset {item.name} with URL: {item.browser_download_url}")
             return item.browser_download_url
-        raise ge.ReleaseAssetError(release.tag_name, asset)  # no asset found by requested name? abort.
+        raise ge.ReleaseAssetError(release.tag_name, asset)
 
 
-def _update_check(local, online):  # TODO Improve update detection, if it's newer, version number, etc.
+def _do_update(local, online):
     """Compares the given versions, returns True if the values are different."""
     x = True if online != local else False
     return x
@@ -62,19 +65,19 @@ def _load_release(repo: str, pre_releases: bool, auth) -> GitRelease.GitRelease:
     g = Github(auth)
     try:
         if g.get_repo(repo).get_releases().totalCount == 0:  # no releases found
-            gf.message("Release count is 0", "debug")
+            log.debug("Release count is 0")
             raise ge.ReleaseNotFoundError(repo)
         if pre_releases:
-            gf.message("Accepting pre-releases", "debug")
+            log.debug("Accepting pre-releases")
             return g.get_repo(repo).get_releases()[0]
         elif not pre_releases:
-            gf.message("Accepting full releases", "debug")
+            log.debug("Accepting full releases")
             for release in g.get_repo(repo).get_releases():
-                gf.message("Checking release: {}".format(release.tag_name), "debug")
+                log.debug(f"Checking release {release.tag_name}")
                 if not release.prerelease:
-                    gf.message("Release found {}".format(release.tag_name), "debug")
+                    log.debug(f"Release found {release.tag_name}")
                     return release
-            gf.message("Zero non-pre-release releases found", "debug")
+            log.debug("Zero non-pre-release releases found")
             raise(ge.ReleaseNotFoundError(repo))
     except RateLimitExceededException:
         reset_time = g.rate_limiting_resettime
@@ -85,18 +88,16 @@ def _load_release(repo: str, pre_releases: bool, auth) -> GitRelease.GitRelease:
 
 def _run_cmd(command: str):
     """Run the given command and close the python interpreter.
-    If no command is given, it will just close. Does not support Windows OS."""
-    if command is None:  # closes program without reboot if no command is given.
-        sys.exit()
-    if sys.platform == "win32":  # removing windows support for the time being, it's wonky.
-        print("Platform not supported.")
-        sys.exit()
-    else:
-        cmd_split = command.split(" ")
+    If no command is given, it will just close. Does not currently support Windows OS."""
+    if sys.platform == "win32" and command is not None:
+        log.info("Windows Platform currently unsupported with reboots. However WSL works.")
+    elif sys.platform == "linux" and command is not None:
+        cmd_split = shlex.split(command)
         sys.stdout.flush()
         os.execv(cmd_split[0], cmd_split[1:])
+    sys.exit()
 
-def python(file: str) -> str:  # used by users to reboot to the given python file in the working directory.
+def python(file: Path) -> str:  # used to reboot to the given python file in the working directory.
     """Builds the command required to run the given python file if it is in the current working directory.
 
     Useful for building the command to place in the reboot parameter of :class:`ghau.update.Update`.
@@ -108,11 +109,13 @@ def python(file: str) -> str:  # used by users to reboot to the given python fil
 
     :exception ghau.errors.FileNotScriptError: raised if the given file is not a python script.
     """
-    program_dir = os.path.realpath(os.path.dirname(sys.argv[0]))
-    if file.endswith(".py"):
-        executable = sys.executable
-        file_path = os.path.join(program_dir, file)
-        return f"{executable} python {file_path} --ghau"
+    if type(file) is str:
+        file = Path(file)
+    program_dir = files.get_program_dir()
+    if file.suffix == ".py":
+        executable = Path(sys.executable)
+        file_path = program_dir.joinpath(file)
+        return f"{executable} {executable.stem} {file_path}"
     else:
         raise ge.FileNotScriptError(file)
 
@@ -128,8 +131,10 @@ def exe(file: str) -> str:  # added for consistency. Boots file in working direc
     See also: :func:`ghau.update.python`, :func:`ghau.update.cmd`
 
     :exception ghau.errors.FileNotExeError: raised if the given file is not an executable."""
-    if file.endswith(".exe"):
-        return "{} --ghau".format(file)
+    if type(file) is str:
+        file = Path(file)
+    if file.suffix == ".exe":
+        return f"{file}"
     else:
         raise ge.FileNotExeError(file)
 
@@ -143,7 +148,13 @@ def cmd(command: str) -> str:  # same as exe
 
     See also: :func:`ghau.update.python`, :func:`ghau.update.exe`
     """
-    return "{} --ghau".format(command)
+    return f"{command}"
+
+def _run_func(func, func_arg, user_args):
+        if func is not None and user_args is not None:
+            func(func_arg, *user_args)
+        elif func is not None:
+            func(func_arg)
 
 
 class Update:
@@ -170,33 +181,35 @@ class Update:
     :type ratemin: int, optional.
     """
     def __init__(self, version: str, repo: str, pre_releases: bool = False,
-                 reboot: str = None, download: str = "zip",
-                 asset: str = None, auth: str = None, ratemin: int = 20, success_func = None, fail_func = None,
-                 success_args: list = None, fail_args: list = None, boot_check: bool = True):
+                 reboot: str = None, download: str = "zip", asset: str = None,
+                 auth: str = None, ratemin: int = 20, boot_check: bool = True,
+                 success_func = None, fail_func = None, pre_update_func = None, fail_args = None, success_args = None, post_update_func = None,
+                 pre_update_args = None, post_update_args = None):
         self.auth = auth
         self.ratemin = ratemin
         self.version = version
         self.repo = repo
         self.pre_releases = pre_releases
-        self.whitelist = {"!**": False}  # wcmatch requires item in its file_search parameter or it pulls everything.
-        self.cleanlist = {"!**": False}
+        self.whitelist = []
         self.reboot = reboot
         self.download = download
         self.asset = asset
-        self.program_dir = os.path.realpath(os.path.dirname(sys.argv[0]))
+        self.program_dir = files.get_program_dir()
         self.boot_check = boot_check
+
+        #  functions for update control
+        self.pre_update_func = pre_update_func
+        self.pre_update_args = pre_update_args
         self.success_func = success_func
         self.success_args = success_args
         self.fail_func = fail_func
         self.fail_args = fail_args
-        if "--ghau" in sys.argv and self.success_func is not None:
-            if files.get_program_dir().joinpath('ghau_temp').exists():
-                data = config.load(files.get_program_dir().joinpath('ghau_temp'))
-                self.success_args = data['args']
-                self.success_func(f"Updated to {self.version}", *self.success_args)
-            else:
-                self.success_func(f"Updated to {self.version}")
+        self.post_update_func = post_update_func
+        self.post_update_args = post_update_args
         if files.get_program_dir().joinpath('ghau_temp').exists():
+            data = config.load(files.get_program_dir().joinpath('ghau_temp'))
+            self.success_args = data['args']
+            _run_func(self.success_func, self.version, self.success_args)
             files.get_program_dir().joinpath('ghau_temp').unlink()
 
     def update(self):
@@ -210,64 +223,62 @@ class Update:
         :exception ghau.errors.InvalidDownloadTypeError: an unexpected value was given to the download parameter of
             :class:`ghau.update.Update`."""
         try:
-            if self.success_args is not None:  # creates temp argument file if success_args exists
-                data = {'args': self.success_args}
-                config.save(files.get_program_dir().joinpath('ghau_temp'), data)
             if self.boot_check:
-                ge.argtest(sys.argv, "--ghau")
+                ge.filetest(files.get_program_dir(), "ghau_temp")
             ge.devtest(self.program_dir)
             ge.ratetest(self.ratemin, self.auth)
-            wl = gf.load_dict("Whitelist", self.program_dir, self.whitelist)
-            cl = gf.load_dict("Cleanlist", self.program_dir, self.cleanlist)
             latest_release = _load_release(self.repo, self.pre_releases, self.auth)
-            do_update = _update_check(self.version, latest_release.tag_name)
+            do_update = _do_update(self.version, latest_release.tag_name)
             if do_update:
-                gf.clean_files(cl)
+                _run_func(self.pre_update_func, (self.version, latest_release.tag_name), self.pre_update_args)
                 if self.download == "zip":
-                    gf.message("Downloading Zip", "debug")
-                    gf.download(latest_release.zipball_url, os.path.join(self.program_dir, "update.zip"))
-                    gf.extract_zip(self.program_dir, os.path.join(self.program_dir, "update.zip"), wl)
-                    gf.message("Updated from {} to {}".format(self.version, latest_release.tag_name), "info")
-                    _run_cmd(self.reboot)
-                    sys.exit()
-                if self.download == "asset":
-                    gf.message("Downloading Asset", "debug")
+                    log.debug("Downloading Zip")
+                    gf.download(latest_release.zipball_url, self.program_dir.joinpath("update.zip"))
+                    gf.extract_zip(self.program_dir, self.program_dir.joinpath("update.zip"), self.whitelist)
+                elif self.download == "asset":
+                    log.debug("Downloading Asset")
                     asset_link = _find_release_asset(latest_release, self.asset)
                     gf.download(asset_link, self.asset)
-                    gf.message("Updated from {} to {}".format(self.version, latest_release.tag_name), "info")
-                    _run_cmd(self.reboot)
-                    sys.exit()
                 else:
                     raise ge.InvalidDownloadTypeError(self.download)
+                data = {'args': self.success_args} # creates temp argument file if success_args exists
+                config.save(files.get_program_dir().joinpath('ghau_temp'), data)
+                _run_func(self.post_update_func, (self.version, latest_release.tag_name), self.post_update_args)
+                log.info(f"Updated from {self.version} to {latest_release.tag_name}")
+                self.restart()
             else:
-                gf.message("No update required.", "info")
-                if self.fail_func is not None and self.fail_args is not None:
-                    self.fail_func("No update required.", *self.fail_args)
-                elif self.fail_func is not None:
-                    self.fail_func("No update required.")
+                log.info("No update required.")
+                _run_func(self.fail_func, "No update required.", self.fail_args)
         except (ge.GithubRateLimitError, ge.GitRepositoryFoundError, ge.ReleaseNotFoundError, ge.ReleaseAssetError,
                 ge.FileNotExeError, ge.FileNotScriptError, ge.NoAssetsFoundError, ge.InvalidDownloadTypeError,
-                ge.LoopPreventionError) as e:
-            gf.message(e.message, "info")
-            if self.fail_func is not None and self.fail_args is not None:
-                self.fail_func(e.message, *self.fail_args)
-            elif self.fail_func is not None:
-                self.fail_func(e.message)
+                ge.LoopPreventionError, ge.NotAFileOrDirectoryError) as e:
+            log.info(e.message)
+            _run_func(self.fail_func, e.message, self.fail_args)
             return
+
+    def update_check(self):
+        """Returns True if an update is available to download."""
+        ge.ratetest(self.ratemin, self.auth)
+        latest_release = _load_release(self.repo, self.pre_releases, self.auth)
+        return _do_update(self.version, latest_release.tag_name)
+
+    def restart(self):
+        """Restarts the program"""
+        log.info("restarting!")
+        _run_cmd(self.reboot)
 
     def wl_test(self):
         """Test the whitelist and output what's protected.
 
         Useful for testing your whitelist configuration."""
-        gf.message(self.whitelist, "debug")
-        wl = gf.load_dict("Whitelist", self.program_dir, self.whitelist)
-        gf.message(wl, "debug")
-        if len(wl) == 0:
-            gf.message("Nothing is protected by your whitelist.", "info")
+        log.debug(self.whitelist)
+        log.debug(self.whitelist)
+        if len(self.whitelist) == 0:
+            log.info("Nothing is protected by your whitelist.")
         else:
-            gf.message("Whitelist will protect the following from being overwritten during installation: ", "info")
-            for path in wl:
-                gf.message(path, "info")
+            log.info("Whitelist will protect the following from being overwritten during installation: ")
+            for path in self.whitelist:
+                log.info(path)
 
     def wl_files(self, *args: str):
         """Add files to the whitelist. This protects any listed files from deletion during update installation.
@@ -275,74 +286,15 @@ class Update:
 
         :param args: list of files to protect.
         :type args: str"""
-        if len(self.whitelist.keys()) == 1 and "!**" in self.whitelist.keys():  # resets whitelist if not used yet.
-            self.whitelist = {}
-            gf.message("Reset whitelist for building.", "debug")
-        for arg in args:
-            self.whitelist[arg] = False
-            gf.message("Loaded file {} into the whitelist.".format(arg), "debug")
-
-    def wl_exclude(self, *args: str):
-        """Add directories here to exclude them in building the whitelist.
-
-        Useful to fine-tune your whitelist if it's grabbing too many files.
-
-        :param args: list of folders to exclude.
-        :type args: str"""
-        if len(self.whitelist.keys()) == 1 and "!**" in self.whitelist.keys():  # resets whitelist if not used yet.
-            self.whitelist = {}
-            gf.message("Reset whitelist for building.", "debug")
-        for arg in args:
-            self.whitelist[arg] = True
-            gf.message("Loaded file {} into the whitelist.".format(arg), "debug")
-
-    def cl_test(self):
-        """Test the cleanlist and output what it will clean.
-
-        Useful for testing your cleaning configuration."""
-        gf.message(self.cleanlist, "debug")
-        cl = gf.load_dict("Cleanlist", self.program_dir, self.cleanlist)
-        gf.message(cl, "debug")
-        if len(cl) == 0:
-            gf.message("Nothing will be deleted during cleaning.", "info")
-        else:
-            gf.message("Cleaning will delete the following: ", "info")
-            for path in cl:
-                gf.message(path, "debug")
-
-    def cl_files(self, *args):
-        """List files here you would like to erase before installing an update.
-        Each file should be a string referring to its name.
-
-        :param args: list of files to delete.
-        :type args: str
-
-        :exception ghau.errors.NoPureWildcardsAllowedError: Found a "*" or "*.*" entry in the given arguments.
-            Be more specific than that. This is to protect consumer devices should they have your program in a different
-            environment. We don't want to wipe anyone's devices."""
-        try:
-            if "*" in args or "*.*" in args:
-                raise ge.NoPureWildcardsAllowedError("cleanlist")  # wildcard protection, no wiping devices.
-        except ge.NoPureWildcardsAllowedError as e:
-            gf.message(e.message, "info")
-            raise
-        if len(self.cleanlist.keys()) == 1 and "!**" in self.cleanlist.keys():  # resets cleanlist if not used yet.
-            self.cleanlist = {}
-            gf.message("Reset cleanlist for building.", "debug")
-        for arg in args:
-            self.cleanlist[arg] = False
-            gf.message("Loaded file {} into the cleanlist.".format(arg), "debug")
-
-    def cl_exclude(self, *args: str):
-        """Add directories here to exclude them in building the cleanlist.
-
-        Useful to fine-tune your cleanlist if it's grabbing too many files.
-
-        :param args: list of folders to exclude.
-        :type args: str"""
-        if len(self.cleanlist.keys()) == 1 and "!**" in self.cleanlist.keys():  # resets cleanlist if it's not used yet.
-            self.cleanlist = {}
-            gf.message("Reset cleanlist for building.", "info")
-        for arg in args:
-            self.cleanlist[arg] = True
-            gf.message("Loaded file {} into the cleanlist exclusions.".format(arg), "debug")
+        for item in args:
+            item = Path(item)
+            if not item.exists():
+                raise FileNotFoundError(item)
+            elif item.is_dir():
+                for file in item.glob("**/*"):
+                    self.whitelist.append(file)
+            elif item.is_file():
+                self.whitelist.append(item)
+            else:
+                raise ge.NotAFileOrDirectoryError
+            log.debug(f"Loaded file {item} into the whitelist.")
